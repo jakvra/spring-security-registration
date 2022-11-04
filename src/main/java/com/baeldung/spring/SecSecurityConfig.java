@@ -24,6 +24,7 @@ import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.access.expression.DefaultWebSecurityExpressionHandler;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
@@ -61,6 +62,9 @@ public class SecSecurityConfig extends WebSecurityConfigurerAdapter {
     @Autowired
     private DifferentLocationChecker differentLocationChecker;
 
+    @Autowired
+    private AccessDeniedHandler accessDeniedHandler;
+
     public SecSecurityConfig() {
         super();
     }
@@ -96,6 +100,7 @@ public class SecSecurityConfig extends WebSecurityConfigurerAdapter {
                         "/user/changePassword*", "/emailError*", "/resources/**","/old/user/registration*","/successRegister*","/qrcode*","/user/enableNewLoc*").permitAll()
                 .antMatchers("/invalidSession*").anonymous()
                 .antMatchers("/user/updatePassword*").hasAuthority("CHANGE_PASSWORD_PRIVILEGE")
+                .antMatchers("/management").hasRole("MANAGER")
                 .anyRequest().hasAuthority("READ_PRIVILEGE")
                 .and()
             .formLogin()
@@ -119,7 +124,9 @@ public class SecSecurityConfig extends WebSecurityConfigurerAdapter {
                 .deleteCookies("JSESSIONID")
                 .permitAll()
              .and()
-                .rememberMe().rememberMeServices(rememberMeServices()).key("theKey");
+                .rememberMe().rememberMeServices(rememberMeServices()).key("theKey")
+            .and()
+                .exceptionHandling().accessDeniedHandler(accessDeniedHandler);
 
     // @formatter:on
     }
