@@ -18,7 +18,9 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
-import java.util.Collection;
+import java.util.List;
+
+import static java.util.stream.Collectors.toList;
 
 @Component("myAuthenticationSuccessHandler")
 public class MySimpleUrlAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
@@ -44,10 +46,9 @@ public class MySimpleUrlAuthenticationSuccessHandler implements AuthenticationSu
 
             String username;
             if (authentication.getPrincipal() instanceof User) {
-            	username = ((User)authentication.getPrincipal()).getEmail();
-            }
-            else {
-            	username = authentication.getName();
+                username = ((User) authentication.getPrincipal()).getEmail();
+            } else {
+                username = authentication.getName();
             }
             LoggedUser user = new LoggedUser(username, activeUserStore);
             session.setAttribute("user", user);
@@ -60,7 +61,7 @@ public class MySimpleUrlAuthenticationSuccessHandler implements AuthenticationSu
     private void loginNotification(Authentication authentication, HttpServletRequest request) {
         try {
             if (authentication.getPrincipal() instanceof User && isGeoIpLibEnabled()) {
-                deviceService.verifyDevice(((User)authentication.getPrincipal()), request);
+                deviceService.verifyDevice(((User) authentication.getPrincipal()), request);
             }
         } catch (Exception e) {
             logger.error("An error occurred while verifying device or location", e);
@@ -80,28 +81,27 @@ public class MySimpleUrlAuthenticationSuccessHandler implements AuthenticationSu
     }
 
     protected String determineTargetUrl(final Authentication authentication) {
-        boolean isUser = false;
-        boolean isAdmin = false;
-        final Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
-        for (final GrantedAuthority grantedAuthority : authorities) {
-            if (grantedAuthority.getAuthority().equals("READ_PRIVILEGE")) {
-                isUser = true;
-            } else if (grantedAuthority.getAuthority().equals("WRITE_PRIVILEGE")) {
-                isAdmin = true;
-                isUser = false;
-                break;
-            }
-        }
-        if (isUser) {
-        	 String username;
-             if (authentication.getPrincipal() instanceof User) {
-             	username = ((User)authentication.getPrincipal()).getEmail();
-             }
-             else {
-             	username = authentication.getName();
-             }
+        final List<String> grantedPrivileges = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority).collect(toList());
 
-            return "/homepage.html?user="+username;
+        boolean hasReadPrivilege = grantedPrivileges.contains("READ_PRIVILEGE");
+        boolean hasWritePrivilege = grantedPrivileges.contains("WRITE_PRIVILEGE");
+        boolean hasPasswdPrivilege = grantedPrivileges.contains("CHANGE_PASSWORD_PRIVILEGE");
+        boolean hasManagerPrivilege = grantedPrivileges.contains("MANAGER_PRIVILEGE");
+
+        boolean isUser = hasReadPrivilege && !hasWritePrivilege && hasPasswdPrivilege && !hasManagerPrivilege;      // read, passwd
+        boolean isAdmin = hasReadPrivilege && hasWritePrivilege && hasPasswdPrivilege && !hasManagerPrivilege;      // read, write, passwd
+        boolean isManager = hasReadPrivilege && hasWritePrivilege && !hasPasswdPrivilege && hasManagerPrivilege;    // read, write, mng
+
+        if (isUser || isManager) {
+            String username;
+            if (authentication.getPrincipal() instanceof User) {
+                username = ((User) authentication.getPrincipal()).getEmail();
+            } else {
+                username = authentication.getName();
+            }
+
+            return "/homepage.html?user=" + username;
         } else if (isAdmin) {
             return "/console";
         } else {
